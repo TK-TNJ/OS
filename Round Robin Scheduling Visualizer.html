@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Round Robin Scheduling Visualizer</title>
+<style>
+:root{
+  color-scheme:light dark;
+  --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:ui-monospace,"SF Mono","Cascadia Code",Consolas,monospace;
+  --bg:#eef1ee;--surf:#ffffff;--txt:#1a1d1a;--mut:#666d66;--bd:#dbe0da;
+  --p1:#2a9d8f;--p2:#c99a2e;--p3:#6a5a9c;--p4:#c1443f;--cs:#8d99a3;--idle:#e4e8e2;--acc:#b4690e;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){--bg:#141815;--surf:#1b211d;--txt:#e8ebe7;--mut:#93998f;--bd:#2c332d;--idle:#262c26;}
+}
+:root[data-theme="dark"]{--bg:#141815;--surf:#1b211d;--txt:#e8ebe7;--mut:#93998f;--bd:#2c332d;--idle:#262c26;}
+*{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+html,body{background:var(--bg)}
+body{margin:0;color:var(--txt);font-family:var(--sans);
+  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+header{max-width:960px;margin:0 auto;padding:22px 20px 10px}
+header h1{font-size:1.4rem;margin:0 0 6px;font-weight:650}
+header p{color:var(--mut);margin:0;font-size:.9rem;line-height:1.5;max-width:640px}
+.tabs{display:flex;gap:8px;max-width:960px;margin:0 auto;padding:10px 20px 0}
+.tab{flex:1;padding:10px;border:1px solid var(--bd);background:var(--surf);color:var(--txt);border-radius:8px 8px 0 0;cursor:pointer;font-size:.9rem}
+.tab.active{background:var(--acc);color:#fff;border-color:var(--acc)}
+main{max-width:960px;margin:0 auto;padding:0 20px 60px}
+.panel{display:none}
+.panel.active{display:block}
+h2{font-size:1.15rem;margin:18px 0 4px;font-weight:650}
+.sub{color:var(--mut);font-size:.86rem;margin:0 0 14px;line-height:1.5;max-width:640px}
+h3{font-size:.95rem;margin:24px 0 8px;color:var(--mut);font-weight:600}
+.qtoggle{display:flex;gap:8px;margin-bottom:12px}
+.qbtn{padding:8px 14px;border:1px solid var(--bd);background:var(--surf);color:var(--txt);border-radius:6px;cursor:pointer;font-size:.85rem}
+.qbtn.active{background:var(--acc);color:#fff;border-color:var(--acc)}
+.qslot{display:flex;align-items:center;gap:6px}
+.qnum{width:44px;border:1px solid var(--bd);border-radius:4px;background:var(--bg);color:var(--txt);font-family:var(--mono);padding:2px 4px;font-size:.85rem}
+.qbtn.active .qnum{background:rgba(255,255,255,.15);color:#fff;border-color:rgba(255,255,255,.4)}
+.simbox{background:var(--surf);border:1px solid var(--bd);border-radius:8px;padding:14px;margin-bottom:14px}
+.controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.controls button{width:36px;height:36px;border-radius:6px;border:1px solid var(--bd);background:var(--bg);color:var(--txt);cursor:pointer;font-size:.95rem}
+.sld{flex:1;min-width:140px}
+.tlab{font-family:var(--mono);font-size:.82rem;color:var(--mut);min-width:118px}
+.state{display:flex;align-items:center;gap:20px;margin:12px 0 10px;font-size:.86rem;flex-wrap:wrap}
+.cpuv{display:inline-block;padding:3px 10px;border-radius:5px;font-family:var(--mono);font-size:.85rem;background:var(--idle);color:var(--mut)}
+.cpuv.cs{background:var(--cs);color:#fff}
+.tiles{display:flex;gap:8px;flex-wrap:wrap}
+.tile{border:1px solid var(--bd);border-radius:6px;padding:6px 10px;font-size:.78rem;min-width:100px;max-width:150px}
+.tile b{display:block;font-family:var(--mono)}
+.tile i{display:block;font-style:normal;font-size:.68rem;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tile span{display:block;text-transform:capitalize;font-size:.72rem;margin-top:2px}
+.tile em{display:block;font-style:normal;color:var(--mut);font-size:.72rem;font-family:var(--mono)}
+.tile.running{border-color:var(--acc);box-shadow:0 0 0 2px var(--acc) inset}
+.tile.pending{opacity:.45}
+.tile.done{opacity:.6}
+.legend{display:flex;gap:12px;font-size:.74rem;color:var(--mut);margin-bottom:6px;flex-wrap:wrap}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px}
+.gantwrap{overflow-x:auto;margin-bottom:14px}
+.gantt{position:relative;display:flex;height:46px;border:1px solid var(--bd);border-radius:4px;min-width:560px}
+.seg{display:flex;align-items:center;justify-content:center;color:#fff;font-size:.72rem;font-weight:600;font-family:var(--mono);min-width:14px;border-right:1px solid rgba(255,255,255,.3)}
+.seg.idle{background:var(--idle);color:var(--mut)}
+.p-P1{background:var(--p1)}.p-P2{background:var(--p2)}.p-P3{background:var(--p3)}.p-P4{background:var(--p4)}.cs{background:var(--cs)}
+.cursor{position:absolute;top:0;bottom:0;width:2px;background:var(--txt)}
+.tblwrap{overflow-x:auto;margin-bottom:12px}
+table{width:100%;border-collapse:collapse;font-size:.82rem;font-family:var(--mono)}
+th,td{border:1px solid var(--bd);padding:6px 8px;text-align:center;white-space:nowrap}
+th{background:var(--bg);font-family:var(--sans);font-weight:600}
+.metrics input{width:100%;min-width:56px;border:1px solid transparent;background:transparent;color:var(--txt);font-family:var(--mono);font-size:.82rem;text-align:center;border-radius:4px;padding:3px}
+.metrics input:hover,.metrics input:focus{border-color:var(--bd);background:var(--bg)}
+.metrics .ename{font-family:var(--sans);text-align:left;min-width:120px}
+.edel{border:none;background:transparent;color:var(--mut);cursor:pointer;font-size:1rem;line-height:1;padding:2px 6px;border-radius:4px}
+.edel:hover{background:var(--idle);color:var(--p4)}
+.addp{display:block;margin:0 0 16px;padding:7px 14px;border:1px dashed var(--bd);border-radius:6px;background:transparent;color:var(--mut);cursor:pointer;font-size:.82rem}
+.addp:hover{border-color:var(--acc);color:var(--acc)}
+.stats{display:flex;gap:10px;flex-wrap:wrap;margin:0 0 14px}
+.stat{background:var(--surf);border:1px solid var(--bd);border-radius:6px;padding:8px 12px;min-width:96px}
+.stat span{display:block;font-size:.68rem;color:var(--mut);font-family:var(--sans)}
+.stat b{display:block;font-size:.95rem;font-family:var(--mono);margin-top:2px}
+.verdict{font-size:.85rem;background:var(--surf);border:1px solid var(--bd);border-radius:8px;padding:10px 12px;line-height:1.5;max-width:640px}
+</style>
+</head>
+<body>
+<header>
+<h1>Round Robin Scheduling Visualizer</h1>
+<p>Two control centres, modelled second by second: a municipal utility balancing water, waste, traffic and energy services, and a climate response unit balancing flood, air-quality, evacuation and grid alerts. Pick a quantum, drag the slider or press play to watch Round Robin decide what runs each millisecond.</p>
+</header>
+<nav class="tabs">
+<button class="tab active" data-tab="1">Activity 1</button>
+<button class="tab" data-tab="2">Activity 2</button>
+</nav>
+<main>
+<section class="panel active" id="panel1"></section>
+<section class="panel" id="panel2"></section>
+</main>
+<script>
+const DATA = {
+  a1:{
+    title:'Smart Municipal Control Centre',
+    sub:'Water-quality, waste-collection, traffic-pollution and energy-use services share one processor under Round Robin scheduling. Supports SDG 6, 11 and 12. This activity ignores context-switch overhead.',
+    cs:0, quanta:[2,3],
+    processes:[
+      {id:'P1',name:'Water-quality monitoring',arrival:0,burst:5},
+      {id:'P2',name:'Waste-collection scheduling',arrival:1,burst:3},
+      {id:'P3',name:'Traffic-pollution analysis',arrival:2,burst:4},
+      {id:'P4',name:'Public energy-use monitoring',arrival:3,burst:2}
+    ]
+  },
+  a2:{
+    title:'Climate Emergency Response Centre',
+    sub:'Flood-warning, air-quality, evacuation-route and renewable-grid services share one processor under Round Robin scheduling. Supports SDG 11 and 13. Every process switch costs 1 ms of overhead here.',
+    cs:1, quanta:[2,4],
+    processes:[
+      {id:'P1',name:'Flood-warning analysis',arrival:0,burst:5},
+      {id:'P2',name:'Air-quality alert generation',arrival:1,burst:4},
+      {id:'P3',name:'Emergency evacuation route update',arrival:2,burst:3},
+      {id:'P4',name:'Renewable-grid status monitoring',arrival:3,burst:2}
+    ]
+  }
+};
+
+const PALETTE=['#2a9d8f','#c99a2e','#6a5a9c','#c1443f','#457b9d','#588157','#9c527a','#b5838d'];
+function simulateRR(processes, quantum, cs){
+  const procs = processes.map(p=>({...p, remaining:p.burst, completion:null, firstRun:null}));
+  const byArrival = [...procs].sort((a,b)=>a.arrival-b.arrival);
+  const n = procs.length;
+  let queue=[], time=0, idx=0, completed=0, lastPid=null, csCount=0;
+  const timeline=[];
+  const admit=t=>{ while(idx<n && byArrival[idx].arrival<=t){ queue.push(byArrival[idx]); idx++; } };
+  admit(0);
+  while(completed<n){
+    if(!queue.length){
+      const nt=byArrival[idx].arrival;
+      timeline.push({type:'idle',start:time,end:nt,queue:[]});
+      time=nt; admit(time); continue;
+    }
+    const p=queue.shift();
+    const qSnap=queue.map(x=>x.id);
+    const isSwitch = lastPid!==null && lastPid!==p.id;
+    if(isSwitch) csCount++;
+    if(cs>0 && isSwitch){
+      timeline.push({type:'cs',start:time,end:time+cs,queue:qSnap});
+      time+=cs;
+    }
+    if(p.firstRun===null) p.firstRun=time;
+    const run=Math.min(quantum,p.remaining);
+    timeline.push({type:'proc',pid:p.id,start:time,end:time+run,queue:qSnap});
+    time+=run; p.remaining-=run; lastPid=p.id;
+    admit(time);
+    if(p.remaining>0) queue.push(p); else { p.completion=time; completed++; }
+  }
+  const metrics = procs.map(p=>({id:p.id,name:p.name,arrival:p.arrival,burst:p.burst,completion:p.completion,
+    turnaround:p.completion-p.arrival, waiting:p.completion-p.arrival-p.burst, response:p.firstRun-p.arrival}));
+  const avg = k=>metrics.reduce((s,m)=>s+m[k],0)/n;
+  const total = timeline[timeline.length-1].end;
+  const overhead = csCount*cs;
+  return {timeline, metrics, avgTurnaround:avg('turnaround'), avgWaiting:avg('waiting'), avgResponse:avg('response'),
+    csCount, overhead, total, efficiency:(total-overhead)/total*100};
+}
+
+function createPanel(container, info){
+  let state = { processes: info.processes.map((p,i)=>({...p, ci:i})), quanta:[...info.quanta], activeIdx:0, t:0, timer:null };
+  let results = [];
+  let nextIdNum = info.processes.length+1;
+  let colorCounter = info.processes.length;
+
+  function colorFor(pid){ const p=state.processes.find(x=>x.id===pid); return p? PALETTE[p.ci%PALETTE.length] : '#999'; }
+  function recompute(){ results = state.quanta.map(q=>simulateRR(state.processes,q,info.cs)); }
+  recompute();
+
+  container.innerHTML = `
+    <h2>${info.title}</h2>
+    <p class="sub">${info.sub}</p>
+    <div class="qtoggle">
+      <label class="qbtn qslot active"><input type="radio" name="actq-${info.key}" class="qsel" data-i="0" checked> Quantum <input type="number" class="qnum" data-i="0" value="${info.quanta[0]}" min="1" max="50"> ms</label>
+      <label class="qbtn qslot"><input type="radio" name="actq-${info.key}" class="qsel" data-i="1"> Quantum <input type="number" class="qnum" data-i="1" value="${info.quanta[1]}" min="1" max="50"> ms</label>
+    </div>
+    <div class="simbox">
+      <div class="controls">
+        <button class="rst" title="Reset">⏮</button>
+        <button class="ply" title="Play or pause">▶</button>
+        <input type="range" class="sld" min="0" max="0" value="0">
+        <span class="tlab">t = 0 ms</span>
+      </div>
+      <div class="state"><div>CPU <b class="cpuv">idle</b></div><div>Waiting queue: <span class="qv">—</span></div></div>
+      <div class="tiles"></div>
+    </div>
+    <div class="legend"></div>
+    <div class="gantwrap"><div class="gantt"></div></div>
+    <div class="tblwrap"><table class="metrics"></table></div>
+    <button class="addp">+ Add process</button>
+    <div class="stats"></div>
+    <h3>Quantum comparison</h3>
+    <div class="tblwrap"><table class="cmp"></table></div>
+    <p class="verdict"></p>`;
+
+  const $=s=>container.querySelector(s);
+  const sld=$('.sld'), tlab=$('.tlab'), cpuv=$('.cpuv'), qv=$('.qv'),
+        tiles=$('.tiles'), gantt=$('.gantt'), legendEl=$('.legend'), metricsEl=$('.metrics'), statsEl=$('.stats'), cmpEl=$('.cmp'),
+        verdictEl=$('.verdict'), plyBtn=$('.ply'), rstBtn=$('.rst'), addBtn=$('.addp');
+
+  function segAt(tl,t){ if(t>=tl[tl.length-1].end) return tl[tl.length-1]; return tl.find(s=>t>=s.start&&t<s.end); }
+  function remAt(tl,pid,burst,t){ let ex=0; for(const s of tl) if(s.type==='proc'&&s.pid===pid) ex+=Math.max(0,Math.min(s.end,t)-s.start); return burst-ex; }
+
+  function renderLegend(){
+    legendEl.innerHTML = state.processes.map(p=>`<span><i style="background:${colorFor(p.id)}"></i>${p.id}</span>`).join('') + (info.cs>0?'<span><i class="cs"></i>Context switch</span>':'');
+  }
+
+  function renderGantt(){
+    const r=results[state.activeIdx];
+    gantt.innerHTML = r.timeline.map(s=>{
+      const w=(s.end-s.start)/r.total*100;
+      const style = s.type==='proc'? `background:${colorFor(s.pid)}` : '';
+      const cls = s.type==='proc'?'seg':(s.type==='cs'?'seg cs':'seg idle');
+      const lbl = s.type==='proc'?s.pid:(s.type==='cs'?'CS':'');
+      return `<div class="${cls}" style="width:${w}%;${style}" title="${s.type} ${s.start} to ${s.end} ms">${lbl}</div>`;
+    }).join('') + `<div class="cursor" style="left:${state.t/r.total*100}%"></div>`;
+  }
+
+  function renderState(){
+    const r=results[state.activeIdx], finished=state.t>=r.total, seg=segAt(r.timeline,state.t);
+    cpuv.style.background=''; cpuv.style.color='';
+    if(finished){ cpuv.className='cpuv'; cpuv.textContent='finished'; }
+    else if(seg.type==='proc'){ cpuv.className='cpuv'; cpuv.style.background=colorFor(seg.pid); cpuv.style.color='#fff'; cpuv.textContent=seg.pid+' running'; }
+    else if(seg.type==='cs'){ cpuv.className='cpuv cs'; cpuv.textContent='context switch'; }
+    else { cpuv.className='cpuv'; cpuv.textContent='idle'; }
+    qv.textContent = (!finished && seg.queue && seg.queue.length)?seg.queue.join(', '):'—';
+    tiles.innerHTML = state.processes.map(p=>{
+      const m=r.metrics.find(x=>x.id===p.id), arrived=p.arrival<=state.t, done=m.completion<=state.t;
+      const rem = done?0:(arrived?remAt(r.timeline,p.id,p.burst,state.t):p.burst);
+      const running = !finished && seg.type==='proc' && seg.pid===p.id;
+      const st = !arrived?'pending':done?'done':running?'running':'waiting';
+      return `<div class="tile ${st}"><b>${p.id}</b><i title="${p.name}">${p.name}</i><span>${st}</span><em>${arrived?rem+' ms left':'arrives '+p.arrival+' ms'}</em></div>`;
+    }).join('');
+    sld.value=state.t; tlab.textContent=`t = ${state.t} ms / ${r.total} ms`;
+  }
+
+  function renderMetrics(){
+    const r=results[state.activeIdx];
+    metricsEl.innerHTML = `<tr><th>Process</th><th>Task</th><th>Arrival</th><th>Burst</th><th>Completion</th><th>Turnaround</th><th>Waiting</th><th>Response</th><th></th></tr>` +
+      r.metrics.map(m=>{
+        const p=state.processes.find(x=>x.id===m.id);
+        return `<tr data-pid="${m.id}"><td>${m.id}</td><td><input class="ename" value="${p.name}"></td><td><input class="earr" type="number" min="0" value="${p.arrival}"></td><td><input class="eburst" type="number" min="1" value="${p.burst}"></td><td>${m.completion}</td><td>${m.turnaround}</td><td>${m.waiting}</td><td>${m.response}</td><td><button class="edel" title="Delete">×</button></td></tr>`;
+      }).join('');
+    const stats = [['Avg turnaround', r.avgTurnaround.toFixed(2)+' ms'], ['Avg waiting', r.avgWaiting.toFixed(2)+' ms'], ['Avg response', r.avgResponse.toFixed(2)+' ms'], ['Context switches', r.csCount]];
+    if(info.cs>0) stats.push(['CS overhead', r.overhead+' ms'], ['CPU efficiency', r.efficiency.toFixed(1)+'%']);
+    statsEl.innerHTML = stats.map(([label,val])=>`<div class="stat"><span>${label}</span><b>${val}</b></div>`).join('');
+  }
+
+  function renderCompare(){
+    const a=results[0], b=results[1];
+    const rows=[['Average turnaround (ms)','avgTurnaround'],['Average waiting (ms)','avgWaiting'],['Average response (ms)','avgResponse'],['Context switches','csCount']];
+    if(info.cs>0) rows.push(['CS overhead (ms)','overhead'],['CPU efficiency (%)','efficiency']);
+    const f=v=>typeof v==='number'?(Number.isInteger(v)?v:v.toFixed(2)):v;
+    let html=`<tr><th>Metric</th><th>${state.quanta[0]} ms quantum</th><th>${state.quanta[1]} ms quantum</th></tr>`;
+    rows.forEach(([label,key])=>{ html+=`<tr><td>${label}</td><td>${f(a[key])}</td><td>${f(b[key])}</td></tr>`; });
+    cmpEl.innerHTML = html;
+    const waitW=a.avgWaiting<=b.avgWaiting?state.quanta[0]:state.quanta[1], csW=a.csCount<=b.csCount?state.quanta[0]:state.quanta[1], respW=a.avgResponse<=b.avgResponse?state.quanta[0]:state.quanta[1];
+    let txt = `${waitW} ms quantum gives the lower average waiting time`;
+    txt += csW===waitW? ' and also fewer context switches.' : `, though ${csW} ms quantum causes fewer context switches.`;
+    txt += ` ${respW} ms quantum gives the faster average response time`;
+    txt += info.cs>0? ', which matters most for keeping this emergency workload responsive.' : ', which matters most for fair, interactive access.';
+    verdictEl.textContent = txt;
+  }
+
+  function renderAll(){
+    sld.max=results[state.activeIdx].total;
+    if(state.t>sld.max) state.t=0;
+    renderLegend(); renderGantt(); renderState(); renderMetrics(); renderCompare();
+  }
+  function pause(){ clearInterval(state.timer); state.timer=null; plyBtn.textContent='▶'; }
+  function play(){
+    plyBtn.textContent='⏸';
+    state.timer=setInterval(()=>{
+      const r=results[state.activeIdx];
+      if(state.t>=r.total){ pause(); return; }
+      state.t++; renderState(); renderGantt();
+    },450);
+  }
+
+  container.querySelectorAll('.qsel').forEach(r=>r.addEventListener('change',()=>{
+    pause();
+    container.querySelectorAll('.qslot').forEach(l=>l.classList.remove('active'));
+    r.closest('.qslot').classList.add('active');
+    state.activeIdx=+r.dataset.i; state.t=0; renderAll();
+  }));
+  container.querySelectorAll('.qnum').forEach(inp=>inp.addEventListener('change',()=>{
+    const i=+inp.dataset.i, v=Math.max(1,parseInt(inp.value)||1);
+    inp.value=v; state.quanta[i]=v; pause(); recompute(); state.t=0; renderAll();
+  }));
+  metricsEl.addEventListener('change', e=>{
+    const tr=e.target.closest('tr'); if(!tr || !tr.dataset.pid) return;
+    const proc=state.processes.find(p=>p.id===tr.dataset.pid); if(!proc) return;
+    if(e.target.classList.contains('ename')) proc.name = e.target.value.trim() || proc.name;
+    else if(e.target.classList.contains('earr')) proc.arrival = Math.max(0, parseInt(e.target.value)||0);
+    else if(e.target.classList.contains('eburst')) proc.burst = Math.max(1, parseInt(e.target.value)||1);
+    else return;
+    pause(); recompute(); state.t=0; renderAll();
+  });
+  metricsEl.addEventListener('click', e=>{
+    if(!e.target.classList.contains('edel')) return;
+    if(state.processes.length<=1) return;
+    const tr=e.target.closest('tr');
+    state.processes = state.processes.filter(p=>p.id!==tr.dataset.pid);
+    pause(); recompute(); state.t=0; renderAll();
+  });
+  addBtn.addEventListener('click',()=>{
+    const nid='P'+(nextIdNum++);
+    state.processes.push({id:nid, name:'New service', arrival:0, burst:1, ci:colorCounter++});
+    pause(); recompute(); state.t=0; renderAll();
+  });
+  sld.addEventListener('input',e=>{ pause(); state.t=+e.target.value; renderState(); renderGantt(); });
+  plyBtn.addEventListener('click',()=> state.timer?pause():play());
+  rstBtn.addEventListener('click',()=>{ pause(); state.t=0; renderState(); renderGantt(); });
+
+  renderAll();
+}
+
+createPanel(document.getElementById('panel1'), {key:'a1', title:DATA.a1.title, sub:DATA.a1.sub, processes:DATA.a1.processes, quanta:DATA.a1.quanta, cs:DATA.a1.cs});
+createPanel(document.getElementById('panel2'), {key:'a2', title:DATA.a2.title, sub:DATA.a2.sub, processes:DATA.a2.processes, quanta:DATA.a2.quanta, cs:DATA.a2.cs});
+
+document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
+  t.classList.add('active');
+  document.getElementById('panel'+t.dataset.tab).classList.add('active');
+}));
+</script>
+</body>
+</html>
