@@ -1,0 +1,960 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>OS Scheduling Visualizer</title>
+<style>
+:root{
+  color-scheme:light dark;
+  --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:ui-monospace,"SF Mono","Cascadia Code",Consolas,monospace;
+  --bg:#eef1ee;--surf:#ffffff;--txt:#1a1d1a;--mut:#666d66;--bd:#dbe0da;
+  --p1:#2a9d8f;--p2:#c99a2e;--p3:#6a5a9c;--p4:#c1443f;--p5:#457b9d;--p6:#588157;
+  --idle:#e4e8e2;--acc:#b4690e;--acc-soft:rgba(180,105,14,.12);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#141815;--surf:#1b211d;--txt:#e8ebe7;--mut:#93998f;--bd:#2c332d;--idle:#262c26;
+    --acc:#d4831f;--acc-soft:rgba(212,131,31,.16);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#141815;--surf:#1b211d;--txt:#e8ebe7;--mut:#93998f;--bd:#2c332d;--idle:#262c26;
+  --acc:#d4831f;--acc-soft:rgba(212,131,31,.16);
+}
+*{box-sizing:border-box}
+html,body{background:var(--bg);margin:0;color:var(--txt);font-family:var(--sans);line-height:1.5}
+header{max-width:1000px;margin:0 auto;padding:24px 20px 12px;display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap}
+header h1{font-size:1.45rem;margin:0 0 4px;font-weight:700;letter-spacing:-0.01em}
+header p{color:var(--mut);margin:0;font-size:.9rem;max-width:650px}
+.theme-btn{padding:7px 12px;border:1px solid var(--bd);border-radius:6px;background:var(--surf);color:var(--txt);cursor:pointer;font-size:.82rem}
+.tabs{display:flex;gap:8px;max-width:1000px;margin:0 auto;padding:8px 20px 0}
+.tab{flex:1;padding:11px 14px;border:1px solid var(--bd);background:var(--surf);color:var(--txt);border-radius:8px 8px 0 0;cursor:pointer;font-size:.92rem;font-weight:600;transition:all .15s}
+.tab.active{background:var(--acc);color:#fff;border-color:var(--acc)}
+main{max-width:1000px;margin:0 auto;padding:0 20px 60px}
+.panel{display:none}
+.panel.active{display:block}
+.card{background:var(--surf);border:1px solid var(--bd);border-radius:0 0 10px 10px;padding:18px;margin-bottom:16px}
+.card.rounded{border-radius:10px}
+h2{font-size:1.1rem;margin:0 0 4px;font-weight:650}
+h3{font-size:.92rem;margin:18px 0 8px;color:var(--mut);font-weight:600;text-transform:uppercase;letter-spacing:.03em}
+.sub{color:var(--mut);font-size:.85rem;margin:0 0 14px}
+
+/* Form layout */
+.row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}
+.field{display:flex;flex-direction:column;gap:5px;flex:1;min-width:140px}
+.field.small{flex:0 0 155px}
+label{font-size:.78rem;color:var(--mut);font-weight:600}
+input,select{width:100%;padding:8px 10px;border:1px solid var(--bd);border-radius:6px;background:var(--bg);color:var(--txt);font-family:var(--mono);font-size:.86rem}
+select{font-family:var(--sans)}
+input:focus,select:focus{outline:none;border-color:var(--acc)}
+
+.btn-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;align-items:center}
+button.btn{padding:8px 14px;border:1px solid var(--bd);border-radius:6px;background:var(--surf);color:var(--txt);cursor:pointer;font-size:.85rem;font-weight:500}
+button.btn:hover:not(:disabled){border-color:var(--acc);color:var(--acc)}
+button.btn.primary{background:var(--acc);border-color:var(--acc);color:#fff}
+button.btn.primary:hover{filter:brightness(1.06);color:#fff}
+button.btn:disabled{opacity:.45;cursor:not-allowed}
+.msg{color:#c1443f;font-size:.84rem;margin-top:10px;font-weight:500}
+
+/* Algorithm Pills */
+.algo-pills{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}
+.pill{padding:7px 14px;border:1px solid var(--bd);border-radius:6px;background:var(--bg);color:var(--txt);cursor:pointer;font-size:.84rem;font-family:var(--mono);font-weight:600;display:flex;align-items:center;gap:6px}
+.pill span.badge{font-size:.72rem;padding:1px 6px;border-radius:4px;background:var(--surf);color:var(--mut)}
+.pill.active{background:var(--acc);border-color:var(--acc);color:#fff}
+.pill.active span.badge{background:rgba(255,255,255,.22);color:#fff}
+
+/* Playback Bar */
+.simbox{background:var(--bg);border:1px solid var(--bd);border-radius:8px;padding:12px 14px;margin-bottom:14px}
+.controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.icon-btn{width:34px;height:34px;border-radius:6px;border:1px solid var(--bd);background:var(--surf);color:var(--txt);cursor:pointer;font-size:.9rem;display:inline-flex;align-items:center;justify-content:center}
+.icon-btn:hover:not(:disabled){border-color:var(--acc);color:var(--acc)}
+.icon-btn:disabled{opacity:.4;cursor:not-allowed}
+.sld{flex:1;min-width:140px;accent-color:var(--acc);cursor:pointer}
+.tlab{font-family:var(--mono);font-size:.82rem;color:var(--txt);min-width:130px;text-align:right}
+.speed-sel{width:auto;padding:5px 8px;font-size:.8rem;background:var(--surf)}
+
+/* Status Readouts */
+.state-bar{display:flex;align-items:center;gap:18px;margin-top:10px;padding-top:10px;border-top:1px solid var(--bd);font-size:.84rem;flex-wrap:wrap}
+.badge-pill{display:inline-block;padding:2px 10px;border-radius:5px;font-family:var(--mono);font-size:.82rem;background:var(--idle);color:var(--txt);font-weight:600}
+.seq-strip{font-family:var(--mono);font-size:.82rem;color:var(--mut);word-break:break-word;margin:8px 0}
+.seq-strip b.done{color:var(--txt)}
+.seq-strip b.curr{color:var(--acc);text-decoration:underline}
+
+/* SVG Chart */
+.chart-wrap{width:100%;overflow-x:auto;border:1px solid var(--bd);border-radius:8px;background:var(--surf);padding:8px}
+.chart-wrap svg{display:block;min-width:620px;width:100%;height:auto}
+
+/* Bar Comparison */
+.cmp-row{display:flex;align-items:center;gap:10px;margin:9px 0;font-size:.84rem}
+.cmp-lbl{width:68px;font-family:var(--mono);font-weight:600}
+.bar-track{height:22px;background:var(--bg);border:1px solid var(--bd);flex:1;border-radius:5px;overflow:hidden}
+.bar-fill{height:100%;background:var(--acc);transition:width .35s ease}
+.bar-fill.best{background:var(--p1)}
+.cmp-val{width:95px;text-align:right;font-family:var(--mono);font-size:.82rem}
+
+/* CPU Tiles & Gantt */
+.tiles{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.tile{background:var(--surf);border:1px solid var(--bd);border-radius:6px;padding:6px 10px;font-size:.78rem;min-width:105px}
+.tile b{display:block;font-family:var(--mono);font-size:.84rem}
+.tile span{display:block;text-transform:capitalize;font-size:.72rem;margin-top:1px}
+.tile em{display:block;font-style:normal;color:var(--mut);font-size:.72rem;font-family:var(--mono)}
+.tile.running{border-color:var(--acc);box-shadow:0 0 0 2px var(--acc) inset}
+.tile.pending{opacity:.48}
+.tile.done{opacity:.65}
+
+.legend{display:flex;gap:14px;font-size:.78rem;color:var(--mut);margin:10px 0 6px;flex-wrap:wrap}
+.legend i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.gantwrap{overflow-x:auto;margin-bottom:14px}
+.gantt{position:relative;display:flex;height:48px;border:1px solid var(--bd);border-radius:6px;min-width:560px;background:var(--bg);overflow:hidden}
+.seg{display:flex;align-items:center;justify-content:center;color:#fff;font-size:.76rem;font-weight:600;font-family:var(--mono);border-right:1px solid rgba(255,255,255,.28);overflow:hidden}
+.seg.idle{background:var(--idle);color:var(--mut)}
+.cursor{position:absolute;top:0;bottom:0;width:2.5px;background:var(--txt);box-shadow:0 0 4px rgba(0,0,0,.4);pointer-events:none;transition:left .08s linear}
+.axis-ticks{display:flex;justify-content:space-between;font-family:var(--mono);font-size:.74rem;color:var(--mut);margin-top:4px;min-width:560px}
+
+/* Tables & Stat Cards */
+.tblwrap{overflow-x:auto;margin-top:10px}
+table{width:100%;border-collapse:collapse;font-size:.84rem;font-family:var(--mono)}
+th,td{border:1px solid var(--bd);padding:7px 9px;text-align:center;white-space:nowrap}
+th{background:var(--bg);font-family:var(--sans);font-weight:600;font-size:.8rem;color:var(--mut)}
+td input{min-width:58px;padding:4px 6px;text-align:center}
+.del-btn{border:none;background:transparent;color:var(--mut);cursor:pointer;font-size:1rem;padding:2px 7px;border-radius:4px}
+.del-btn:hover{background:var(--idle);color:#c1443f}
+.stats{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0}
+.stat{background:var(--bg);border:1px solid var(--bd);border-radius:7px;padding:9px 13px;min-width:125px;flex:1}
+.stat span{display:block;font-size:.74rem;color:var(--mut)}
+.stat b{display:block;font-size:1.08rem;font-family:var(--mono);margin-top:2px}
+.hide{display:none!important}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>OS Scheduling Visualizer</h1>
+    <p>Interactive step-by-step and real-time playback for Disk Scheduling (FCFS, SSTF, SCAN, C-SCAN, LOOK) and CPU Scheduling (FCFS, SJF, Round Robin).</p>
+  </div>
+  <button class="theme-btn" id="themeToggle">Toggle Dark/Light</button>
+</header>
+
+<nav class="tabs">
+  <button class="tab active" data-panel="disk">Part A: Disk Scheduling</button>
+  <button class="tab" data-panel="cpu">Part B: CPU Scheduling</button>
+</nav>
+
+<main>
+  <!-- ==================== PART A: DISK SCHEDULING ==================== -->
+  <section class="panel active" id="disk">
+    <div class="card">
+      <h2>Disk Parameters &amp; Request Queue</h2>
+      <p class="sub">Configure cylinder range, initial head position, and seek direction. Click an algorithm pill below to animate its seek path.</p>
+      <div class="row">
+        <div class="field small">
+          <label>Disk Cylinders (0 to N−1)</label>
+          <input id="diskSize" type="number" min="2" value="200">
+        </div>
+        <div class="field small">
+          <label>Initial Head</label>
+          <input id="head" type="number" min="0" value="50">
+        </div>
+        <div class="field">
+          <label>Request Queue (comma-separated)</label>
+          <input id="requests" value="82, 170, 43, 140, 24, 16, 190">
+        </div>
+        <div class="field small">
+          <label>Initial Direction</label>
+          <select id="direction">
+            <option value="right">Higher cylinders (→)</option>
+            <option value="left">Lower cylinders (←)</option>
+          </select>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn primary" id="diskRun">Simulate &amp; Animate</button>
+        <button class="btn" id="diskSample">Load Sample Test (FCFS=642, SSTF=208)</button>
+        <button class="btn" id="diskReset">Reset</button>
+      </div>
+      <div id="diskMsg" class="msg"></div>
+    </div>
+
+    <div class="card rounded" id="diskVisCard">
+      <h2>Seek Trajectory Animation</h2>
+      <p class="sub">Switch between any of the 5 algorithms to watch the read/write head move across tracks.</p>
+
+      <div class="algo-pills" id="diskPills"></div>
+
+      <div class="simbox">
+        <div class="controls">
+          <button class="icon-btn" id="dRst" title="Reset to step 0">⏮</button>
+          <button class="icon-btn" id="dPrev" title="Previous step">◀</button>
+          <button class="icon-btn" id="dPlay" title="Play / Pause">▶</button>
+          <button class="icon-btn" id="dNext" title="Next step">▶|</button>
+          <input type="range" class="sld" id="dSlider" min="0" max="0" value="0">
+          <select class="speed-sel" id="dSpeed" title="Replay speed">
+            <option value="1200">0.5x</option>
+            <option value="650" selected>1x</option>
+            <option value="320">2x</option>
+            <option value="150">4x</option>
+          </select>
+          <span class="tlab" id="dStepLab">Step 0 / 0</span>
+        </div>
+        <div class="state-bar">
+          <div>Head Position: <span class="badge-pill" id="dHeadNow">50</span></div>
+          <div>Cumulative Seek: <span class="badge-pill" id="dSeekNow">0 cylinders</span></div>
+          <div>Last Jump: <span class="badge-pill" id="dJumpNow">—</span></div>
+        </div>
+        <div class="seq-strip" id="diskSeq"></div>
+      </div>
+
+      <div class="chart-wrap" id="diskChart"></div>
+
+      <div class="stats" id="diskMetrics"></div>
+    </div>
+
+    <div class="card rounded">
+      <h2>Total Head Movement Comparison</h2>
+      <p class="sub">Lower total cylinder movement translates to lower seek latency and reduced motor power draw.</p>
+      <div id="diskCompare"></div>
+    </div>
+  </section>
+
+  <!-- ==================== PART B: CPU SCHEDULING ==================== -->
+  <section class="panel" id="cpu">
+    <div class="card">
+      <h2>Process Workload &amp; Algorithm</h2>
+      <p class="sub">Edit arrival times, burst durations, or priorities directly in the table, then scrub or play the Gantt timeline.</p>
+      <div class="row">
+        <div class="field small" style="flex:0 0 230px">
+          <label>Scheduling Algorithm</label>
+          <select id="cpuAlgo">
+            <option value="rr">Round Robin (Preemptive)</option>
+            <option value="fcfs">First Come First Serve (FCFS)</option>
+            <option value="sjf">Shortest Job First (Non-Preemptive)</option>
+          </select>
+        </div>
+        <div class="field small" id="quantumField">
+          <label>Time Quantum (ms)</label>
+          <input id="quantum" type="number" min="1" max="50" value="2">
+        </div>
+      </div>
+
+      <div class="tblwrap">
+        <table id="procTable">
+          <thead>
+            <tr>
+              <th>Process ID</th>
+              <th>Arrival Time (ms)</th>
+              <th>Burst Time (ms)</th>
+              <th>Priority</th>
+              <th>Remove</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn" id="addProc">+ Add Process</button>
+        <button class="btn primary" id="cpuRun">Simulate &amp; Animate</button>
+        <button class="btn" id="cpuReset">Reset</button>
+      </div>
+      <div id="cpuMsg" class="msg"></div>
+    </div>
+
+    <div class="card rounded">
+      <h2>Animated Gantt Chart &amp; Execution Timeline</h2>
+      <div class="simbox">
+        <div class="controls">
+          <button class="icon-btn" id="cRst" title="Reset to t = 0">⏮</button>
+          <button class="icon-btn" id="cPrev" title="Previous time unit">◀</button>
+          <button class="icon-btn" id="cPlay" title="Play / Pause">▶</button>
+          <button class="icon-btn" id="cNext" title="Next time unit">▶|</button>
+          <input type="range" class="sld" id="cSlider" min="0" max="0" value="0">
+          <select class="speed-sel" id="cSpeed" title="Replay speed">
+            <option value="1000">0.5x</option>
+            <option value="500" selected>1x</option>
+            <option value="250">2x</option>
+            <option value="100">4x</option>
+          </select>
+          <span class="tlab" id="cTimeLab">t = 0 / 0 ms</span>
+        </div>
+        <div class="state-bar">
+          <div>CPU State: <span class="badge-pill" id="cCpuNow">idle</span></div>
+          <div>Ready Queue: <span class="badge-pill" id="cQueueNow">—</span></div>
+        </div>
+        <div class="tiles" id="cTiles"></div>
+      </div>
+
+      <div class="legend" id="cLegend"></div>
+      <div class="gantwrap">
+        <div class="gantt" id="ganttArea"></div>
+        <div class="axis-ticks" id="ganttTicks"></div>
+      </div>
+
+      <h3>Process Performance Metrics</h3>
+      <div id="cpuMetrics"></div>
+    </div>
+  </section>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const PALETTE = ['#2a9d8f','#c99a2e','#6a5a9c','#c1443f','#457b9d','#588157','#9c527a','#b5838d'];
+
+function esc(s){
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+/* Theme toggle */
+$('themeToggle').onclick = () => {
+  const root = document.documentElement;
+  const isDark = root.getAttribute('data-theme') === 'dark' ||
+    (!root.getAttribute('data-theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  root.setAttribute('data-theme', isDark ? 'light' : 'dark');
+};
+
+/* Tabs */
+document.querySelectorAll('.tab').forEach(btn => {
+  btn.onclick = () => {
+    stopDiskTimer();
+    stopCpuTimer();
+    document.querySelectorAll('.tab,.panel').forEach(el => el.classList.remove('active'));
+    btn.classList.add('active');
+    $(btn.dataset.panel).classList.add('active');
+  };
+});
+
+/* ==========================================================================
+   PART A: DISK SCHEDULING ENGINE & ANIMATOR
+   ========================================================================== */
+let diskState = {
+  n: 200,
+  head: 50,
+  paths: {},
+  movements: {},
+  selected: 'FCFS',
+  step: 0,
+  timer: null
+};
+
+function computeDiskAlgorithms(n, h, req, dir) {
+  const sorted = [...req].sort((a, b) => a - b);
+  const paths = {};
+
+  // 1. FCFS
+  paths.FCFS = [h, ...req];
+
+  // 2. SSTF
+  let cur = h, remain = [...sorted], sstf = [h];
+  while (remain.length) {
+    let bestIdx = 0;
+    for (let i = 1; i < remain.length; i++) {
+      if (Math.abs(remain[i] - cur) < Math.abs(remain[bestIdx] - cur)) bestIdx = i;
+    }
+    cur = remain.splice(bestIdx, 1)[0];
+    sstf.push(cur);
+  }
+  paths.SSTF = sstf;
+
+  // Helper for SCAN, C-SCAN, LOOK
+  const lower = sorted.filter(x => x < h);
+  const upper = sorted.filter(x => x >= h);
+
+  // 3. SCAN (Elevator - touches end boundary before reversing)
+  if (dir === 'right') {
+    const seq = [h, ...upper];
+    if (lower.length) {
+      if (seq[seq.length - 1] !== n - 1) seq.push(n - 1);
+      seq.push(...lower.slice().reverse());
+    }
+    paths.SCAN = seq;
+  } else {
+    const seq = [h, ...lower.slice().reverse()];
+    if (upper.length) {
+      if (seq[seq.length - 1] !== 0) seq.push(0);
+      seq.push(...upper);
+    }
+    paths.SCAN = seq;
+  }
+
+  // 4. C-SCAN (Circular SCAN - sweeps to end, jumps to 0/N-1, continues same direction)
+  if (dir === 'right') {
+    const seq = [h, ...upper];
+    if (lower.length) {
+      if (seq[seq.length - 1] !== n - 1) seq.push(n - 1);
+      seq.push(0, ...lower);
+    }
+    paths['C-SCAN'] = seq;
+  } else {
+    const seq = [h, ...lower.slice().reverse()];
+    if (upper.length) {
+      if (seq[seq.length - 1] !== 0) seq.push(0);
+      seq.push(n - 1, ...upper.slice().reverse());
+    }
+    paths['C-SCAN'] = seq;
+  }
+
+  // 5. LOOK (Reverses at last request without hitting empty disk boundaries)
+  if (dir === 'right') {
+    paths.LOOK = [h, ...upper, ...lower.slice().reverse()];
+  } else {
+    paths.LOOK = [h, ...lower.slice().reverse(), ...upper];
+  }
+
+  // Deduplicate consecutive identical points & calculate movements
+  const movements = {};
+  Object.keys(paths).forEach(algo => {
+    paths[algo] = paths[algo].filter((val, idx, arr) => idx === 0 || val !== arr[idx - 1]);
+    let sum = 0;
+    for (let i = 1; i < paths[algo].length; i++) {
+      sum += Math.abs(paths[algo][i] - paths[algo][i - 1]);
+    }
+    movements[algo] = sum;
+  });
+
+  return { paths, movements };
+}
+
+function stopDiskTimer() {
+  if (diskState.timer) {
+    clearInterval(diskState.timer);
+    diskState.timer = null;
+  }
+  $('dPlay').textContent = '▶';
+}
+
+function startDiskTimer() {
+  stopDiskTimer();
+  const pts = diskState.paths[diskState.selected] || [];
+  if (diskState.step >= pts.length - 1) diskState.step = 0;
+  $('dPlay').textContent = '⏸';
+  const delay = +$('dSpeed').value;
+  diskState.timer = setInterval(() => {
+    const maxStep = (diskState.paths[diskState.selected]?.length || 1) - 1;
+    if (diskState.step >= maxStep) {
+      stopDiskTimer();
+      return;
+    }
+    diskState.step++;
+    renderDiskFrame();
+  }, delay);
+}
+
+$('dSpeed').onchange = () => {
+  if (diskState.timer) startDiskTimer();
+};
+
+function renderDiskPills() {
+  const algos = ['FCFS', 'SSTF', 'SCAN', 'C-SCAN', 'LOOK'];
+  $('diskPills').innerHTML = algos.map(algo => `
+    <button class="pill ${diskState.selected === algo ? 'active' : ''}" data-algo="${algo}">
+      ${algo} <span class="badge">${diskState.movements[algo]} cyl</span>
+    </button>
+  `).join('');
+
+  $('diskPills').querySelectorAll('.pill').forEach(btn => {
+    btn.onclick = () => {
+      diskState.selected = btn.dataset.algo;
+      diskState.step = 0;
+      renderDiskPills();
+      renderDiskFrame();
+      startDiskTimer(); // Auto-play whenever user clicks a new algorithm pill!
+    };
+  });
+}
+
+function renderDiskFrame() {
+  const pts = diskState.paths[diskState.selected] || [diskState.head];
+  const maxStep = Math.max(0, pts.length - 1);
+  diskState.step = Math.min(Math.max(0, diskState.step), maxStep);
+
+  $('dSlider').max = maxStep;
+  $('dSlider').value = diskState.step;
+  $('dStepLab').textContent = `Step ${diskState.step} / ${maxStep}`;
+  $('dPrev').disabled = diskState.step <= 0;
+  $('dRst').disabled = diskState.step <= 0;
+  $('dNext').disabled = diskState.step >= maxStep;
+
+  // Compute cumulative seek up to current step
+  let cumSeek = 0;
+  for (let i = 1; i <= diskState.step; i++) {
+    cumSeek += Math.abs(pts[i] - pts[i - 1]);
+  }
+  const currCyl = pts[diskState.step];
+  const lastJump = diskState.step > 0 ? Math.abs(pts[diskState.step] - pts[diskState.step - 1]) : 0;
+
+  $('dHeadNow').textContent = `Cylinder ${currCyl}`;
+  $('dSeekNow').textContent = `${cumSeek} / ${diskState.movements[diskState.selected]} cylinders`;
+  $('dJumpNow').textContent = diskState.step > 0 ? `|${pts[diskState.step - 1]} → ${currCyl}| = ${lastJump}` : 'Start';
+
+  // Sequence highlight
+  $('diskSeq').innerHTML = 'Path: ' + pts.map((c, idx) => {
+    if (idx < diskState.step) return `<b class="done">${c}</b>`;
+    if (idx === diskState.step) return `<b class="curr">${c}</b>`;
+    return `<span>${c}</span>`;
+  }).join(' → ');
+
+  // Draw animated SVG graph
+  const n = diskState.n;
+  const w = Math.max(660, pts.length * 72);
+  const h = 300;
+  const padL = 48, padR = 36, padT = 36, padB = 34;
+  const stepX = (w - padL - padR) / Math.max(1, pts.length - 1);
+  const yPos = cyl => h - padB - (cyl / (n - 1)) * (h - padT - padB);
+
+  // Horizontal reference grid lines
+  const ticks = [0, Math.round((n - 1) * 0.25), Math.round((n - 1) * 0.5), Math.round((n - 1) * 0.75), n - 1];
+  const gridSvg = ticks.map(t => {
+    const yy = yPos(t);
+    return `
+      <line x1="${padL}" y1="${yy}" x2="${w - padR}" y2="${yy}" stroke="var(--bd)" stroke-dasharray="3,3"/>
+      <text x="${padL - 8}" y="${yy + 4}" font-size="11" text-anchor="end" fill="var(--mut)" font-family="var(--mono)">${t}</text>
+    `;
+  }).join('');
+
+  // Ghost future path
+  const fullPoly = pts.map((c, i) => `${padL + i * stepX},${yPos(c)}`).join(' ');
+  // Active visited path
+  const activePts = pts.slice(0, diskState.step + 1);
+  const activePoly = activePts.map((c, i) => `${padL + i * stepX},${yPos(c)}`).join(' ');
+
+  // Points & labels
+  const nodesSvg = pts.map((c, i) => {
+    const cx = padL + i * stepX;
+    const cy = yPos(c);
+    const visited = i <= diskState.step;
+    const isCurrent = i === diskState.step;
+    const fill = isCurrent ? 'var(--acc)' : (visited ? 'var(--p1)' : 'var(--bd)');
+    const labelY = cy < padT + 18 ? cy + 16 : cy - 10;
+
+    return `
+      ${isCurrent ? `<circle cx="${cx}" cy="${cy}" r="11" fill="var(--acc)" opacity="0.22"/>` : ''}
+      <circle cx="${cx}" cy="${cy}" r="${isCurrent ? 6 : 4.2}" fill="${fill}"/>
+      <text x="${cx}" y="${labelY}" font-size="11" font-weight="${isCurrent ? '700' : '500'}" text-anchor="middle"
+            fill="${visited ? 'var(--txt)' : 'var(--mut)'}" font-family="var(--mono)">${c}</text>
+      <text x="${cx}" y="${h - 10}" font-size="10" text-anchor="middle" fill="var(--mut)" font-family="var(--mono)">#${i}</text>
+    `;
+  }).join('');
+
+  $('diskChart').innerHTML = `
+    <svg viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg">
+      ${gridSvg}
+      <line x1="${padL}" y1="${padT}" x2="${padL}" y2="${h - padB}" stroke="var(--bd)" stroke-width="1.5"/>
+      <line x1="${padL}" y1="${h - padB}" x2="${w - padR}" y2="${h - padB}" stroke="var(--bd)" stroke-width="1.5"/>
+      <polyline points="${fullPoly}" fill="none" stroke="var(--bd)" stroke-width="2" stroke-dasharray="5,5"/>
+      <polyline points="${activePoly}" fill="none" stroke="var(--acc)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+      ${nodesSvg}
+      <text x="${padL}" y="18" fill="var(--txt)" font-size="13" font-weight="650">${diskState.selected} Seek Trajectory (Cylinder vs. Service Step)</text>
+    </svg>
+  `;
+}
+
+function runDiskSimulation(autoStart = true) {
+  stopDiskTimer();
+  const n = +$('diskSize').value;
+  const h = +$('head').value;
+  const req = $('requests').value.split(',').map(x => x.trim()).filter(Boolean).map(Number);
+  const dir = $('direction').value;
+  const msg = $('diskMsg');
+
+  if (!Number.isInteger(n) || n < 2 || !Number.isInteger(h) || h < 0 || h >= n ||
+      !req.length || req.some(x => !Number.isInteger(x) || x < 0 || x >= n)) {
+    msg.textContent = `Validation Error: Disk size must be ≥ 2, and head/requests must be integers within [0, ${Math.max(1, n - 1)}].`;
+    return;
+  }
+  msg.textContent = '';
+
+  const { paths, movements } = computeDiskAlgorithms(n, h, req, dir);
+  diskState.n = n;
+  diskState.head = h;
+  diskState.paths = paths;
+  diskState.movements = movements;
+  diskState.step = 0;
+
+  renderDiskPills();
+  renderDiskFrame();
+
+  // Summary metric cards
+  const entries = Object.entries(movements);
+  const minMove = Math.min(...Object.values(movements));
+  const maxMove = Math.max(...Object.values(movements));
+
+  $('diskMetrics').innerHTML = entries.map(([algo, val]) => `
+    <div class="stat">
+      <span>${algo} Total Seek</span>
+      <b style="color:${val === minMove ? 'var(--p1)' : 'inherit'}">${val} cyl</b>
+    </div>
+  `).join('');
+
+  // Comparison bar chart
+  $('diskCompare').innerHTML = entries
+    .sort((a, b) => a[1] - b[1])
+    .map(([algo, val]) => {
+      const pct = maxMove > 0 ? Math.max(3, (val / maxMove) * 100) : 0;
+      const isBest = val === minMove;
+      return `
+        <div class="cmp-row">
+          <div class="cmp-lbl">${algo}</div>
+          <div class="bar-track"><div class="bar-fill ${isBest ? 'best' : ''}" style="width:${pct}%"></div></div>
+          <div class="cmp-val">${val} cyl ${isBest ? '★' : ''}</div>
+        </div>
+      `;
+    }).join('');
+
+  if (autoStart) startDiskTimer();
+}
+
+$('diskRun').onclick = () => runDiskSimulation(true);
+$('diskSample').onclick = () => {
+  $('diskSize').value = 200;
+  $('head').value = 50;
+  $('requests').value = '82, 170, 43, 140, 24, 16, 190';
+  $('direction').value = 'right';
+  runDiskSimulation(true);
+};
+$('diskReset').onclick = () => {
+  $('diskSize').value = 200;
+  $('head').value = 53;
+  $('requests').value = '98, 183, 37, 122, 14, 124, 65, 67';
+  $('direction').value = 'right';
+  runDiskSimulation(false);
+};
+
+$('dPlay').onclick = () => diskState.timer ? stopDiskTimer() : startDiskTimer();
+$('dRst').onclick = () => { stopDiskTimer(); diskState.step = 0; renderDiskFrame(); };
+$('dPrev').onclick = () => { stopDiskTimer(); diskState.step--; renderDiskFrame(); };
+$('dNext').onclick = () => { stopDiskTimer(); diskState.step++; renderDiskFrame(); };
+$('dSlider').oninput = e => { stopDiskTimer(); diskState.step = +e.target.value; renderDiskFrame(); };
+
+
+/* ==========================================================================
+   PART B: CPU SCHEDULING ENGINE & ANIMATOR
+   ========================================================================== */
+let procs = [
+  { id: 'P1', arrival: 0, burst: 5, priority: 2 },
+  { id: 'P2', arrival: 1, burst: 3, priority: 1 },
+  { id: 'P3', arrival: 2, burst: 6, priority: 3 },
+  { id: 'P4', arrival: 3, burst: 2, priority: 4 }
+];
+
+let cpuState = {
+  timeline: [],
+  metrics: [],
+  totalTime: 0,
+  t: 0,
+  timer: null
+};
+
+function renderProcTable() {
+  const tb = $('procTable').querySelector('tbody');
+  tb.innerHTML = procs.map((p, i) => `
+    <tr>
+      <td><input value="${esc(p.id)}" data-i="${i}" data-k="id"></td>
+      <td><input type="number" min="0" value="${p.arrival}" data-i="${i}" data-k="arrival"></td>
+      <td><input type="number" min="1" value="${p.burst}" data-i="${i}" data-k="burst"></td>
+      <td><input type="number" min="1" value="${p.priority}" data-i="${i}" data-k="priority"></td>
+      <td><button class="del-btn" data-del="${i}" title="Remove">✕</button></td>
+    </tr>
+  `).join('');
+
+  tb.querySelectorAll('input').forEach(inp => {
+    inp.onchange = () => {
+      const idx = +inp.dataset.i;
+      const key = inp.dataset.k;
+      procs[idx][key] = key === 'id' ? inp.value.trim() || `P${idx + 1}` : +inp.value;
+    };
+  });
+
+  tb.querySelectorAll('[data-del]').forEach(btn => {
+    btn.onclick = () => {
+      if (procs.length > 1) {
+        procs.splice(+btn.dataset.del, 1);
+        renderProcTable();
+      }
+    };
+  });
+}
+
+$('addProc').onclick = () => {
+  procs.push({ id: 'P' + (procs.length + 1), arrival: 0, burst: 3, priority: 1 });
+  renderProcTable();
+};
+
+$('cpuAlgo').onchange = () => {
+  $('quantumField').classList.toggle('hide', $('cpuAlgo').value !== 'rr');
+};
+
+function simulateCPU() {
+  const algo = $('cpuAlgo').value;
+  const q = +$('quantum').value;
+
+  if (procs.some(p => !Number.isInteger(p.arrival) || p.arrival < 0 || !Number.isInteger(p.burst) || p.burst < 1)) {
+    throw new Error('Arrival times must be ≥ 0 and burst times must be ≥ 1.');
+  }
+  if (algo === 'rr' && (!Number.isInteger(q) || q < 1)) {
+    throw new Error('Time quantum must be a positive integer.');
+  }
+
+  const jobs = procs.map((p, idx) => ({
+    ...p,
+    ci: idx,
+    remaining: p.burst,
+    completion: null,
+    firstRun: null
+  }));
+
+  let time = 0, completed = 0;
+  const n = jobs.length;
+  const timeline = [];
+
+  if (algo === 'rr') {
+    const byArr = [...jobs].sort((a, b) => a.arrival - b.arrival);
+    let queue = [], idx = 0;
+    const admit = t => { while (idx < n && byArr[idx].arrival <= t) queue.push(byArr[idx++]); };
+    admit(0);
+
+    while (completed < n) {
+      if (!queue.length) {
+        const nextT = byArr[idx].arrival;
+        timeline.push({ type: 'idle', id: 'Idle', start: time, end: nextT, queue: [] });
+        time = nextT;
+        admit(time);
+        continue;
+      }
+      const p = queue.shift();
+      const qSnap = queue.map(x => x.id);
+      if (p.firstRun === null) p.firstRun = time;
+      const run = Math.min(q, p.remaining);
+      timeline.push({ type: 'proc', id: p.id, ci: p.ci, start: time, end: time + run, queue: qSnap });
+      time += run;
+      p.remaining -= run;
+      admit(time);
+      if (p.remaining > 0) queue.push(p);
+      else { p.completion = time; completed++; }
+    }
+  } else {
+    // FCFS or SJF (Non-preemptive)
+    while (completed < n) {
+      const ready = jobs.filter(j => j.remaining > 0 && j.arrival <= time);
+      if (!ready.length) {
+        const nextT = Math.min(...jobs.filter(j => j.remaining > 0).map(j => j.arrival));
+        timeline.push({ type: 'idle', id: 'Idle', start: time, end: nextT, queue: [] });
+        time = nextT;
+        continue;
+      }
+      if (algo === 'fcfs') {
+        ready.sort((a, b) => a.arrival - b.arrival || a.ci - b.ci);
+      } else if (algo === 'sjf') {
+        ready.sort((a, b) => a.burst - b.burst || a.arrival - b.arrival);
+      }
+      const p = ready[0];
+      const qSnap = ready.slice(1).map(x => x.id);
+      p.firstRun = time;
+      timeline.push({ type: 'proc', id: p.id, ci: p.ci, start: time, end: time + p.burst, queue: qSnap });
+      time += p.burst;
+      p.remaining = 0;
+      p.completion = time;
+      completed++;
+    }
+  }
+
+  const metrics = jobs.map(p => ({
+    id: p.id,
+    ci: p.ci,
+    arrival: p.arrival,
+    burst: p.burst,
+    completion: p.completion,
+    turnaround: p.completion - p.arrival,
+    waiting: p.completion - p.arrival - p.burst
+  }));
+
+  return { timeline, metrics, totalTime: time };
+}
+
+function stopCpuTimer() {
+  if (cpuState.timer) {
+    clearInterval(cpuState.timer);
+    cpuState.timer = null;
+  }
+  $('cPlay').textContent = '▶';
+}
+
+function startCpuTimer() {
+  stopCpuTimer();
+  if (cpuState.t >= cpuState.totalTime) cpuState.t = 0;
+  $('cPlay').textContent = '⏸';
+  const delay = +$('cSpeed').value;
+  cpuState.timer = setInterval(() => {
+    if (cpuState.t >= cpuState.totalTime) {
+      stopCpuTimer();
+      return;
+    }
+    cpuState.t++;
+    renderCpuFrame();
+  }, delay);
+}
+
+$('cSpeed').onchange = () => {
+  if (cpuState.timer) startCpuTimer();
+};
+
+function renderCpuFrame() {
+  const { timeline, metrics, totalTime } = cpuState;
+  const t = Math.min(Math.max(0, cpuState.t), totalTime);
+  cpuState.t = t;
+
+  $('cSlider').max = totalTime;
+  $('cSlider').value = t;
+  $('cTimeLab').textContent = `t = ${t} / ${totalTime} ms`;
+  $('cPrev').disabled = t <= 0;
+  $('cRst').disabled = t <= 0;
+  $('cNext').disabled = t >= totalTime;
+
+  // Determine active segment at time t
+  const activeSeg = t >= totalTime
+    ? timeline[timeline.length - 1]
+    : timeline.find(s => t >= s.start && t < s.end);
+
+  const cpuBadge = $('cCpuNow');
+  if (t >= totalTime) {
+    cpuBadge.style.background = 'var(--idle)';
+    cpuBadge.style.color = 'var(--txt)';
+    cpuBadge.textContent = 'Finished';
+    $('cQueueNow').textContent = 'Empty';
+  } else if (!activeSeg || activeSeg.type === 'idle') {
+    cpuBadge.style.background = 'var(--idle)';
+    cpuBadge.style.color = 'var(--mut)';
+    cpuBadge.textContent = 'Idle';
+    $('cQueueNow').textContent = 'Empty';
+  } else {
+    cpuBadge.style.background = PALETTE[activeSeg.ci % PALETTE.length];
+    cpuBadge.style.color = '#fff';
+    cpuBadge.textContent = `${activeSeg.id} running`;
+    $('cQueueNow').textContent = activeSeg.queue.length ? activeSeg.queue.join(', ') : 'Empty';
+  }
+
+  // Process state tiles
+  $('cTiles').innerHTML = metrics.map(m => {
+    let executed = 0;
+    for (const s of timeline) {
+      if (s.type === 'proc' && s.id === m.id) {
+        executed += Math.max(0, Math.min(s.end, t) - s.start);
+      }
+    }
+    const rem = m.burst - executed;
+    let status = 'waiting';
+    if (t < m.arrival) status = 'pending';
+    else if (rem === 0) status = 'done';
+    else if (t < totalTime && activeSeg && activeSeg.id === m.id) status = 'running';
+
+    return `
+      <div class="tile ${status}">
+        <b style="color:${PALETTE[m.ci % PALETTE.length]}">${esc(m.id)}</b>
+        <span>${status}</span>
+        <em>rem: ${rem}/${m.burst} ms</em>
+      </div>
+    `;
+  }).join('');
+
+  // Gantt chart with moving cursor
+  const pct = totalTime > 0 ? (t / totalTime) * 100 : 0;
+  $('ganttArea').innerHTML = timeline.map(s => {
+    const w = ((s.end - s.start) / Math.max(1, totalTime)) * 100;
+    const bg = s.type === 'proc' ? `background:${PALETTE[s.ci % PALETTE.length]}` : '';
+    return `<div class="seg ${s.type === 'idle' ? 'idle' : ''}" style="width:${w}%;${bg}" title="${s.id}: ${s.start}–${s.end} ms">${esc(s.id)}</div>`;
+  }).join('') + `<div class="cursor" style="left:${pct}%"></div>`;
+
+  // Time axis markers
+  const tickCount = Math.min(totalTime, 12);
+  let ticksHtml = '';
+  for (let i = 0; i <= tickCount; i++) {
+    const val = Math.round((i / Math.max(1, tickCount)) * totalTime);
+    ticksHtml += `<span>${val}</span>`;
+  }
+  $('ganttTicks').innerHTML = ticksHtml;
+}
+
+function runCpuSimulation(autoStart = true) {
+  stopCpuTimer();
+  try {
+    const res = simulateCPU();
+    cpuState.timeline = res.timeline;
+    cpuState.metrics = res.metrics;
+    cpuState.totalTime = res.totalTime;
+    cpuState.t = 0;
+    $('cpuMsg').textContent = '';
+
+    $('cLegend').innerHTML = res.metrics.map(m =>
+      `<span><i style="background:${PALETTE[m.ci % PALETTE.length]}"></i>${esc(m.id)}</span>`
+    ).join('') + `<span><i style="background:var(--idle);border:1px solid var(--bd)"></i>Idle</span>`;
+
+    const avgW = res.metrics.reduce((s, m) => s + m.waiting, 0) / res.metrics.length;
+    const avgT = res.metrics.reduce((s, m) => s + m.turnaround, 0) / res.metrics.length;
+
+    $('cpuMetrics').innerHTML = `
+      <div class="stats">
+        <div class="stat"><span>Average Waiting Time</span><b>${avgW.toFixed(2)} ms</b></div>
+        <div class="stat"><span>Average Turnaround Time</span><b>${avgT.toFixed(2)} ms</b></div>
+        <div class="stat"><span>Total Schedule Span</span><b>${res.totalTime} ms</b></div>
+      </div>
+      <div class="tblwrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Process</th>
+              <th>Arrival</th>
+              <th>Burst</th>
+              <th>Completion</th>
+              <th>Waiting Time</th>
+              <th>Turnaround Time</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${res.metrics.map(m => `
+              <tr>
+                <td><b style="color:${PALETTE[m.ci % PALETTE.length]}">${esc(m.id)}</b></td>
+                <td>${m.arrival}</td>
+                <td>${m.burst}</td>
+                <td>${m.completion}</td>
+                <td>${m.waiting}</td>
+                <td>${m.turnaround}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+
+    renderCpuFrame();
+    if (autoStart) startCpuTimer();
+  } catch (err) {
+    $('cpuMsg').textContent = err.message;
+  }
+}
+
+$('cpuRun').onclick = () => runCpuSimulation(true);
+$('cpuReset').onclick = () => {
+  procs = [
+    { id: 'P1', arrival: 0, burst: 5, priority: 2 },
+    { id: 'P2', arrival: 1, burst: 3, priority: 1 },
+    { id: 'P3', arrival: 2, burst: 6, priority: 3 },
+    { id: 'P4', arrival: 3, burst: 2, priority: 4 }
+  ];
+  renderProcTable();
+  runCpuSimulation(false);
+};
+
+$('cPlay').onclick = () => cpuState.timer ? stopCpuTimer() : startCpuTimer();
+$('cRst').onclick = () => { stopCpuTimer(); cpuState.t = 0; renderCpuFrame(); };
+$('cPrev').onclick = () => { stopCpuTimer(); cpuState.t--; renderCpuFrame(); };
+$('cNext').onclick = () => { stopCpuTimer(); cpuState.t++; renderCpuFrame(); };
+$('cSlider').oninput = e => { stopCpuTimer(); cpuState.t = +e.target.value; renderCpuFrame(); };
+
+/* Initialize both panels immediately on load */
+renderProcTable();
+runDiskSimulation(false);
+runCpuSimulation(false);
+</script>
+</body>
+</html>
